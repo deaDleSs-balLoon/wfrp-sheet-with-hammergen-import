@@ -2,12 +2,12 @@
 export function convertHammergenToGooz(hammergenData) {
     const goozData = {};
     
-    // 1. Базовые атрибуты + другие атрибуты
+    // 1. Base attributes + other attributes
     const base = hammergenData.baseAttributes || {};
     const other = hammergenData.otherAttributes || {};
     const attributes = hammergenData.attributes || {};
     
-    // Основные атрибуты
+    // Main attributes
     goozData['ag-i'] = attributes.Ag || (base.Ag || 0) + (other.Ag || 0);
     goozData['bs-i'] = attributes.BS || (base.BS || 0) + (other.BS || 0);
     goozData['dex-i'] = attributes.Dex || (base.Dex || 0) + (other.Dex || 0);
@@ -19,7 +19,7 @@ export function convertHammergenToGooz(hammergenData) {
     goozData['wp-i'] = attributes.WP || (base.WP || 0) + (other.WP || 0);
     goozData['ws-i'] = attributes.WS || (base.WS || 0) + (other.WS || 0);
     
-    // Advances атрибутов
+    // Attribute advances
     const advances = hammergenData.attributeAdvances || {};
     goozData['ag-a'] = advances.Ag || 0;
     goozData['bs-a'] = advances.BS || 0;
@@ -32,7 +32,10 @@ export function convertHammergenToGooz(hammergenData) {
     goozData['wp-a'] = advances.WP || 0;
     goozData['ws-a'] = advances.WS || 0;
     
-    // 2. Парсинг description
+    // 2. Maximum encumbrance
+    goozData['encumbrance-max'] = Math.floor((attributes.S || 0) / 10) + Math.floor((attributes.T || 0) / 10);
+    
+    // 3. Parse description
     if (hammergenData.description) {
         const desc = hammergenData.description;
         const ageMatch = desc.match(/Age:\s*(\d+)/i);
@@ -46,11 +49,21 @@ export function convertHammergenToGooz(hammergenData) {
         if (hairMatch) goozData.hair = hairMatch[1];
     }
     
-    // 3. Basic skills advances
+    // 4. Basic skills advances
     if (hammergenData.basicSkills) {
         hammergenData.basicSkills.forEach(skill => {
             const skillName = skill.name.toLowerCase();
-            if (skillName.includes('athletics')) goozData['athletics-aug'] = skill.advances;
+            
+            // Melee skills processing
+            if (skillName.includes('melee')) {
+                if (skillName.includes('basic')) {
+                    goozData['melee-basic-aug'] = skill.advances;
+                } else {
+                    goozData['melee-aug'] = skill.advances;
+                }
+            }
+            // Other skills
+            else if (skillName.includes('athletics')) goozData['athletics-aug'] = skill.advances;
             else if (skillName.includes('bribery')) goozData['bribery-aug'] = skill.advances;
             else if (skillName.includes('charm') && !skillName.includes('animal')) goozData['charm-aug'] = skill.advances;
             else if (skillName.includes('charm animal')) goozData['charm-animal-aug'] = skill.advances;
@@ -77,7 +90,7 @@ export function convertHammergenToGooz(hammergenData) {
         });
     }
     
-    // 4. Advanced skills
+    // 5. Advanced skills
     if (hammergenData.advancedSkills) {
         hammergenData.advancedSkills.forEach((skill, index) => {
             goozData[`custom-skill-name-${index}`] = skill.name;
@@ -86,27 +99,27 @@ export function convertHammergenToGooz(hammergenData) {
         });
     }
     
-    // 5. Class name
+    // 6. Class name
     if (hammergenData.currentCareer?.className) {
         goozData.class = hammergenData.currentCareer.className.toLowerCase();
     }
     
-    // 6. Past careers
+    // 7. Past careers
     if (hammergenData.pastCareers && hammergenData.pastCareers.length > 0) {
         goozData['career-path'] = hammergenData.pastCareers.map(c => c.name).join(', ');
     }
     
-    // 7. Notes
+    // 8. Notes
     if (hammergenData.notes) {
         goozData['ambitions-short'] = hammergenData.notes;
     }
     
-    // 8. Mutations
+    // 9. Mutations
     if (hammergenData.mutations && hammergenData.mutations.length > 0) {
         goozData.mutation = hammergenData.mutations.map(m => m.name || m).join(', ');
     }
     
-    // 9. Talents
+    // 10. Talents
     if (hammergenData.talents) {
         hammergenData.talents.forEach((talent, index) => {
             goozData[`talents-name-${index}`] = talent.name;
@@ -115,51 +128,132 @@ export function convertHammergenToGooz(hammergenData) {
         });
     }
     
-    // 10. Weapons
-    if (hammergenData.equippedWeapon && hammergenData.equippedWeapon.length > 0) {
-        const weapon = hammergenData.equippedWeapon[0];
-        goozData['weapons-name-0'] = weapon.name;
-        goozData['weapons-damage-0'] = weapon.dmg;
-        goozData['weapons-range-0'] = weapon.rng;
-        goozData['weapons-encumbrance-0'] = weapon.enc;
-        goozData['weapons-group-0'] = weapon.group;
-        if (weapon.qualitiesFlaws && weapon.qualitiesFlaws.length > 0) {
-            goozData['weapons-qualities-0'] = weapon.qualitiesFlaws.join(', ');
-        }
-    }
-    
-    // 11. Armor
-    if (hammergenData.equippedArmor && hammergenData.equippedArmor.length > 0) {
-        const armor = hammergenData.equippedArmor[0];
-        goozData['armour-name-0'] = armor.name;
-        goozData['armour-ap-0'] = armor.ap || '';
-        goozData['armour-encumbrance-0'] = armor.enc;
-        goozData['armour-location-0'] = armor.location || '';
-        if (armor.qualitiesFlaws && armor.qualitiesFlaws.length > 0) {
-            goozData['armour-qualities-0'] = armor.qualitiesFlaws.join(', ');
-        }
-    }
-    
-    // 12. Other equipment
-    if (hammergenData.equippedOther && hammergenData.equippedOther.length > 0) {
-        hammergenData.equippedOther.forEach((item, index) => {
-            goozData[`trappings-name-${index}`] = item.name;
-            goozData[`trappings-encumbrance-${index}`] = item.enc;
+    // 11. Weapons
+    let weaponIndex = 0;
+    // equippedWeapon
+    if (hammergenData.equippedWeapon) {
+        hammergenData.equippedWeapon.forEach((weapon) => {
+            goozData[`weapons-name-${weaponIndex}`] = weapon.name;
+            goozData[`weapons-damage-${weaponIndex}`] = weapon.dmg;
+            goozData[`weapons-range-${weaponIndex}`] = weapon.rng;
+            goozData[`weapons-encumbrance-${weaponIndex}`] = weapon.enc;
+            goozData[`weapons-group-${weaponIndex}`] = weapon.group;
+            goozData[`weapons-worn-${weaponIndex}`] = true;
+            
+            if (weapon.qualitiesFlaws && weapon.qualitiesFlaws.length > 0) {
+                goozData[`weapons-qualities-${weaponIndex}`] = weapon.qualitiesFlaws.map(qf => qf.name).join(', ');
+            }
+            weaponIndex++;
         });
     }
     
-    // 13. Spells
-    if (hammergenData.spells && hammergenData.spells.length > 0) {
-        const spell = hammergenData.spells[0];
-        goozData['spells-name-0'] = spell.name;
-        goozData['spells-range-0'] = spell.range || '';
-        goozData['spells-target-0'] = spell.target || '';
-        goozData['spells-duration-0'] = spell.duration || '';
-        goozData['spells-cn-0'] = spell.cn || '';
-        goozData['spells-effects-0'] = spell.effects || '';
+    // 12. Armor
+    let armorIndex = 0;
+    if (hammergenData.equippedArmor) {
+        hammergenData.equippedArmor.forEach((armor) => {
+            goozData[`armour-name-${armorIndex}`] = armor.name;
+            goozData[`armour-ap-${armorIndex}`] = armor.ap || '';
+            goozData[`armour-encumbrance-${armorIndex}`] = armor.enc;
+            goozData[`armour-location-${armorIndex}`] = armor.locations ? armor.locations.join(', ') : '';
+            goozData[`armour-worn-${armorIndex}`] = true;
+            
+            if (armor.qualitiesFlaws && armor.qualitiesFlaws.length > 0) {
+                goozData[`armour-qualities-${armorIndex}`] = armor.qualitiesFlaws.map(qf => qf.name).join(', ');
+            }
+            armorIndex++;
+        });
     }
     
-    // Базовые поля
+    // 13. Other equipment
+    let otherIndex = 0;
+    if (hammergenData.equippedOther) {
+        hammergenData.equippedOther.forEach((item) => {
+            goozData[`trappings-name-${otherIndex}`] = item.name;
+            goozData[`trappings-encumbrance-${otherIndex}`] = item.enc;
+            goozData[`trappings-worn-${otherIndex}`] = true;
+            otherIndex++;
+        });
+    }
+    
+    // 14. Carried items - process and distribute by type
+    if (hammergenData.carried) {
+        hammergenData.carried.forEach((item) => {
+            const type = item.type ? item.type.toLowerCase() : '';
+            
+            if (type.includes('weapon') || type.includes('melee') || type.includes('ranged') || type.includes('ammunition')) {
+                // Weapons and ammunition
+                goozData[`weapons-name-${weaponIndex}`] = item.name;
+                goozData[`weapons-damage-${weaponIndex}`] = item.dmg || '';
+                goozData[`weapons-range-${weaponIndex}`] = item.rng || '';
+                goozData[`weapons-encumbrance-${weaponIndex}`] = item.enc;
+                goozData[`weapons-group-${weaponIndex}`] = item.group || '';
+                goozData[`weapons-worn-${weaponIndex}`] = false;
+                
+                if (item.qualitiesFlaws && item.qualitiesFlaws.length > 0) {
+                    goozData[`weapons-qualities-${weaponIndex}`] = item.qualitiesFlaws.map(qf => qf.name).join(', ');
+                }
+                weaponIndex++;
+            } 
+            else if (type.includes('armour') || type.includes('armor')) {
+                // Armor
+                goozData[`armour-name-${armorIndex}`] = item.name;
+                goozData[`armour-ap-${armorIndex}`] = item.ap || '';
+                goozData[`armour-encumbrance-${armorIndex}`] = item.enc;
+                goozData[`armour-location-${armorIndex}`] = item.locations ? item.locations.join(', ') : '';
+                goozData[`armour-worn-${armorIndex}`] = false;
+                
+                if (item.qualitiesFlaws && item.qualitiesFlaws.length > 0) {
+                    goozData[`armour-qualities-${armorIndex}`] = item.qualitiesFlaws.map(qf => qf.name).join(', ');
+                }
+                armorIndex++;
+            }
+            else if (type.includes('container') || type.includes('grimoire') || type.includes('other')) {
+                // Containers, grimoires and other equipment
+                goozData[`trappings-name-${otherIndex}`] = item.name;
+                goozData[`trappings-encumbrance-${otherIndex}`] = item.enc;
+                goozData[`trappings-worn-${otherIndex}`] = false;
+                otherIndex++;
+            }
+            else {
+                // Other equipment (default)
+                goozData[`trappings-name-${otherIndex}`] = item.name;
+                goozData[`trappings-encumbrance-${otherIndex}`] = item.enc;
+                goozData[`trappings-worn-${otherIndex}`] = false;
+                otherIndex++;
+            }
+        });
+    }
+    
+    // 15. Spells and Prayers - combine into one list
+    let spellIndex = 0;
+    
+    // First spells
+    if (hammergenData.spells) {
+        hammergenData.spells.forEach((spell) => {
+            goozData[`spells-name-${spellIndex}`] = spell.name;
+            goozData[`spells-range-${spellIndex}`] = spell.range || '';
+            goozData[`spells-target-${spellIndex}`] = spell.target || '';
+            goozData[`spells-duration-${spellIndex}`] = spell.duration || '';
+            goozData[`spells-cn-${spellIndex}`] = spell.cn || '';
+            goozData[`spells-effects-${spellIndex}`] = spell.description || '';
+            spellIndex++;
+        });
+    }
+    
+    // Then prayers
+    if (hammergenData.prayers) {
+        hammergenData.prayers.forEach((prayer) => {
+            goozData[`spells-name-${spellIndex}`] = prayer.name;
+            goozData[`spells-range-${spellIndex}`] = prayer.range || '';
+            goozData[`spells-target-${spellIndex}`] = prayer.target || '';
+            goozData[`spells-duration-${spellIndex}`] = prayer.duration || '';
+            goozData[`spells-cn-${spellIndex}`] = '';
+            goozData[`spells-effects-${spellIndex}`] = prayer.description || '';
+            spellIndex++;
+        });
+    }
+    
+    // Basic fields
     goozData.name = hammergenData.name || '';
     goozData.species = hammergenData.species || '';
     goozData.movement = hammergenData.movement || 4;
@@ -221,27 +315,27 @@ export async function importHammergenData(fillFromStorage, setTheme) {
         const raw = await selectedFile.text();
         const data = JSON.parse(raw);
         
-        // Проверяем формат Hammergen
+        // Check Hammergen format
         if (isHammergenFormat(data)) {
-            // Конвертируем данные
+            // Convert data
             const convertedData = convertHammergenToGooz(data);
             
-            // Сохраняем сконвертированные данные
+            // Save converted data
             for (const key in convertedData) {
                 if (convertedData[key] !== undefined && convertedData[key] !== null) {
                     localStorage.setItem(key, convertedData[key]);
                 }
             }
             
-            // Обновляем интерфейс
+            // Update interface
             if (fillFromStorage) fillFromStorage();
             if (setTheme) setTheme();
             
-            successMessage.textContent = "Импорт Hammergen завершен успешно!";
+            successMessage.textContent = "Import Hammergen completed successfully!";
             successMessage.removeAttribute("hidden");
             return true;
         } else {
-            // Стандартный импорт для родного формата
+            // Standard import for native format
             for (const key in data) {
                 localStorage.setItem(key, data[key]);
             }
@@ -249,22 +343,13 @@ export async function importHammergenData(fillFromStorage, setTheme) {
             if (fillFromStorage) fillFromStorage();
             if (setTheme) setTheme();
             
-            successMessage.textContent = "Импорт завершен успешно!";
+            successMessage.textContent = "Import completed successfully!";
             successMessage.removeAttribute("hidden");
             return true;
         }
     } catch (e) {
-        console.error('Ошибка импорта:', e);
+        console.error('Import error:', e);
         errorMessage.removeAttribute("hidden");
         return false;
-    }
-}
-
-export function initHammergenImport(fillFromStorage, setTheme) {
-    const importHammergenButton = document.getElementById('import-hammergen-button');
-    if (importHammergenButton) {
-        importHammergenButton.addEventListener('click', async () => {
-            await importHammergenData(fillFromStorage, setTheme);
-        });
     }
 }
