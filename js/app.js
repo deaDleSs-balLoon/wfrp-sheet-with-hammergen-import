@@ -581,4 +581,17 @@ document.addEventListener("DOMContentLoaded", (event) => {
       successMessage.removeAttribute("hidden");
     }
   }
+
+  async function initHammergen() {
+      try {
+          const { initHammergenImport } = await import('./hammergen-converter.js');
+          initHammergenImport(fillFromStorage, setTheme);
+      } catch (error) {
+          console.warn('Hammergen converter not available:', error);
+      }
+  }
+
+  initHammergen();
+
 });
+
