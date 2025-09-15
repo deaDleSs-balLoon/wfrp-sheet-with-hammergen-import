@@ -1,12 +1,16 @@
 // hammergen-converter.js
 export function convertHammergenToGooz(hammergenData) {
     const goozData = {};
-    
+
+    // Get language from HTML attribute
+    const htmlElement = document.documentElement;
+    const currentLanguage = htmlElement.getAttribute('lang') || 'en';
+
     // 1. Base attributes + other attributes
     const base = hammergenData.baseAttributes || {};
     const other = hammergenData.otherAttributes || {};
     const attributes = hammergenData.attributes || {};
-    
+
     // Main attributes
     goozData['ag-i'] = attributes.Ag || (base.Ag || 0) + (other.Ag || 0);
     goozData['bs-i'] = attributes.BS || (base.BS || 0) + (other.BS || 0);
@@ -18,7 +22,7 @@ export function convertHammergenToGooz(hammergenData) {
     goozData['t-i'] = attributes.T || (base.T || 0) + (other.T || 0);
     goozData['wp-i'] = attributes.WP || (base.WP || 0) + (other.WP || 0);
     goozData['ws-i'] = attributes.WS || (base.WS || 0) + (other.WS || 0);
-    
+
     // Attribute advances
     const advances = hammergenData.attributeAdvances || {};
     goozData['ag-a'] = advances.Ag || 0;
@@ -31,10 +35,10 @@ export function convertHammergenToGooz(hammergenData) {
     goozData['t-a'] = advances.T || 0;
     goozData['wp-a'] = advances.WP || 0;
     goozData['ws-a'] = advances.WS || 0;
-    
+
     // 2. Maximum encumbrance
     goozData['encumbrance-max'] = Math.floor((attributes.S || 0) / 10) + Math.floor((attributes.T || 0) / 10);
-    
+
     // 3. Parse description
     if (hammergenData.description) {
         const desc = hammergenData.description;
@@ -42,18 +46,25 @@ export function convertHammergenToGooz(hammergenData) {
         const heightMatch = desc.match(/Height:\s*([^,]+)/i);
         const eyesMatch = desc.match(/Eyes:\s*([^,]+)/i);
         const hairMatch = desc.match(/Hair:\s*([^,]+)/i);
-        
+
         if (ageMatch) goozData.age = ageMatch[1];
-        if (heightMatch) goozData.height = heightMatch[1];
+        if (heightMatch) {
+            let height = heightMatch[1];
+            // Convert height to centimeters for Russian language
+            if (currentLanguage === 'ru') {
+                height = convertHeightToCentimeters(height);
+            }
+            goozData.height = height;
+        }
         if (eyesMatch) goozData.eyes = eyesMatch[1];
         if (hairMatch) goozData.hair = hairMatch[1];
     }
-    
+
     // 4. Basic skills advances
     if (hammergenData.basicSkills) {
         hammergenData.basicSkills.forEach(skill => {
             const skillName = skill.name.toLowerCase();
-            
+
             // Melee skills processing
             if (skillName.includes('melee')) {
                 if (skillName.includes('basic')) {
@@ -89,7 +100,7 @@ export function convertHammergenToGooz(hammergenData) {
             else if (skillName.includes('art')) goozData['art-aug'] = skill.advances;
         });
     }
-    
+
     // 5. Advanced skills
     if (hammergenData.advancedSkills) {
         hammergenData.advancedSkills.forEach((skill, index) => {
@@ -98,27 +109,27 @@ export function convertHammergenToGooz(hammergenData) {
             goozData[`custom-skill-aug-${index}`] = skill.advances;
         });
     }
-    
+
     // 6. Class name
     if (hammergenData.currentCareer?.className) {
         goozData.class = hammergenData.currentCareer.className.toLowerCase();
     }
-    
+
     // 7. Past careers
     if (hammergenData.pastCareers && hammergenData.pastCareers.length > 0) {
         goozData['career-path'] = hammergenData.pastCareers.map(c => c.name).join(', ');
     }
-    
+
     // 8. Notes
     if (hammergenData.notes) {
         goozData['ambitions-short'] = hammergenData.notes;
     }
-    
+
     // 9. Mutations
     if (hammergenData.mutations && hammergenData.mutations.length > 0) {
         goozData.mutation = hammergenData.mutations.map(m => m.name || m).join(', ');
     }
-    
+
     // 10. Talents
     if (hammergenData.talents) {
         hammergenData.talents.forEach((talent, index) => {
@@ -127,7 +138,7 @@ export function convertHammergenToGooz(hammergenData) {
             goozData[`talents-counter-${index}`] = talent.rank || 1;
         });
     }
-    
+
     // 11. Weapons
     let weaponIndex = 0;
     // equippedWeapon
@@ -139,16 +150,24 @@ export function convertHammergenToGooz(hammergenData) {
             goozData[`weapons-encumbrance-${weaponIndex}`] = weapon.enc;
             goozData[`weapons-group-${weaponIndex}`] = weapon.group;
             goozData[`weapons-worn-${weaponIndex}`] = true;
-            
+
             if (weapon.qualitiesFlaws && weapon.qualitiesFlaws.length > 0) {
                 goozData[`weapons-qualities-${weaponIndex}`] = weapon.qualitiesFlaws.map(qf => qf.name).join(', ');
             }
             weaponIndex++;
         });
     }
-    
-    // 12. Armor
+
+    // 12. Armor - process equipped armor and apply protection values
     let armorIndex = 0;
+
+    // Initialize armor protection fields
+    const armorFields = ['ap-body', 'ap-head', 'ap-left-arm', 'ap-right-arm',
+                         'ap-left-leg', 'ap-right-leg', 'ap-shield'];
+    armorFields.forEach(field => {
+        goozData[field] = 0;
+    });
+
     if (hammergenData.equippedArmor) {
         hammergenData.equippedArmor.forEach((armor) => {
             goozData[`armour-name-${armorIndex}`] = armor.name;
@@ -156,14 +175,18 @@ export function convertHammergenToGooz(hammergenData) {
             goozData[`armour-encumbrance-${armorIndex}`] = armor.enc;
             goozData[`armour-location-${armorIndex}`] = armor.locations ? armor.locations.join(', ') : '';
             goozData[`armour-worn-${armorIndex}`] = true;
-            
+
             if (armor.qualitiesFlaws && armor.qualitiesFlaws.length > 0) {
                 goozData[`armour-qualities-${armorIndex}`] = armor.qualitiesFlaws.map(qf => qf.name).join(', ');
             }
+
+            // Apply armor protection to body parts
+            applyArmorProtection(goozData, armor.ap, armor.locations);
+
             armorIndex++;
         });
     }
-    
+
     // 13. Other equipment
     let otherIndex = 0;
     if (hammergenData.equippedOther) {
@@ -174,12 +197,12 @@ export function convertHammergenToGooz(hammergenData) {
             otherIndex++;
         });
     }
-    
-    // 14. Carried items - process and distribute by type
+
+    // 14. Carried items - process and distribute by type (armor is not worn)
     if (hammergenData.carried) {
         hammergenData.carried.forEach((item) => {
             const type = item.type ? item.type.toLowerCase() : '';
-            
+
             if (type.includes('weapon') || type.includes('melee') || type.includes('ranged') || type.includes('ammunition')) {
                 // Weapons and ammunition
                 goozData[`weapons-name-${weaponIndex}`] = item.name;
@@ -188,20 +211,20 @@ export function convertHammergenToGooz(hammergenData) {
                 goozData[`weapons-encumbrance-${weaponIndex}`] = item.enc;
                 goozData[`weapons-group-${weaponIndex}`] = item.group || '';
                 goozData[`weapons-worn-${weaponIndex}`] = false;
-                
+
                 if (item.qualitiesFlaws && item.qualitiesFlaws.length > 0) {
                     goozData[`weapons-qualities-${weaponIndex}`] = item.qualitiesFlaws.map(qf => qf.name).join(', ');
                 }
                 weaponIndex++;
-            } 
+            }
             else if (type.includes('armour') || type.includes('armor')) {
-                // Armor
+                // Armor (not worn)
                 goozData[`armour-name-${armorIndex}`] = item.name;
                 goozData[`armour-ap-${armorIndex}`] = item.ap || '';
                 goozData[`armour-encumbrance-${armorIndex}`] = item.enc;
                 goozData[`armour-location-${armorIndex}`] = item.locations ? item.locations.join(', ') : '';
                 goozData[`armour-worn-${armorIndex}`] = false;
-                
+
                 if (item.qualitiesFlaws && item.qualitiesFlaws.length > 0) {
                     goozData[`armour-qualities-${armorIndex}`] = item.qualitiesFlaws.map(qf => qf.name).join(', ');
                 }
@@ -223,10 +246,10 @@ export function convertHammergenToGooz(hammergenData) {
             }
         });
     }
-    
+
     // 15. Spells and Prayers - combine into one list
     let spellIndex = 0;
-    
+
     // First spells
     if (hammergenData.spells) {
         hammergenData.spells.forEach((spell) => {
@@ -239,7 +262,7 @@ export function convertHammergenToGooz(hammergenData) {
             spellIndex++;
         });
     }
-    
+
     // Then prayers
     if (hammergenData.prayers) {
         hammergenData.prayers.forEach((prayer) => {
@@ -252,7 +275,7 @@ export function convertHammergenToGooz(hammergenData) {
             spellIndex++;
         });
     }
-    
+
     // Basic fields
     goozData.name = hammergenData.name || '';
     goozData.species = hammergenData.species || '';
@@ -273,13 +296,78 @@ export function convertHammergenToGooz(hammergenData) {
     goozData.sin = hammergenData.sin || 0;
     goozData.corruption = hammergenData.corruption || 0;
     goozData.status = hammergenData.status || '';
-    
+
     if (hammergenData.currentCareer) {
         goozData.career = hammergenData.currentCareer.name || '';
         goozData['career-tier'] = hammergenData.currentCareer.levelName || '';
     }
-    
+
     return goozData;
+}
+
+// Function to convert height from feet/inches to centimeters
+function convertHeightToCentimeters(height) {
+    if (!height || typeof height !== 'string') return height;
+
+    // Patterns for different height formats
+    const patterns = [
+        // Format: 5'10"
+        { regex: /(\d+)['′](\d+)["″]?/, converter: (feet, inches) => feet * 30.48 + inches * 2.54 },
+        // Format: 5 ft 10 in
+        { regex: /(\d+)\s*ft\s*(\d+)\s*in/, converter: (feet, inches) => feet * 30.48 + inches * 2.54 },
+        // Format: 5.10 (decimal feet)
+        { regex: /(\d+)\.(\d+)/, converter: (feet, inches) => feet * 30.48 + parseInt(inches) * 2.54 },
+        // Only feet
+        { regex: /(\d+)\s*['′]?/, converter: (feet) => feet * 30.48 }
+    ];
+
+    for (const { regex, converter } of patterns) {
+        const match = height.match(regex);
+        if (match) {
+            const feet = parseInt(match[1]);
+            const inches = match[2] ? parseInt(match[2]) : 0;
+            const centimeters = Math.round(converter(feet, inches));
+            return `${centimeters} cm`;
+        }
+    }
+
+    return height; // Return original if format not recognized
+}
+
+// Function to apply armor protection to body parts
+function applyArmorProtection(goozData, apValue, locations) {
+    if (!apValue || !locations || locations.length === 0) return;
+
+    const ap = parseInt(apValue) || 0;
+    if (ap <= 0) return;
+
+    // Map location names to field names with support for group locations
+    const locationMap = {
+        'body': ['ap-body'],
+        'head': ['ap-head'],
+        'left arm': ['ap-left-arm'],
+        'right arm': ['ap-right-arm'],
+        'left leg': ['ap-left-leg'],
+        'right leg': ['ap-right-leg'],
+        'arms': ['ap-left-arm', 'ap-right-arm'], // Both arms
+        'legs': ['ap-left-leg', 'ap-right-leg'], // Both legs
+        'shield': ['ap-shield']
+    };
+
+    locations.forEach(location => {
+        const locationKey = location.toLowerCase();
+        const fieldNames = locationMap[locationKey];
+
+        if (fieldNames) {
+            fieldNames.forEach(fieldName => {
+                const currentAp = parseInt(goozData[fieldName] || 0);
+                // Apply maximum protection value for each body part
+                if (ap > currentAp) {
+                    goozData[fieldName] = ap;
+                }
+            });
+        }
+    });
 }
 
 export function isHammergenFormat(data) {
@@ -314,23 +402,23 @@ export async function importHammergenData(fillFromStorage, setTheme) {
     try {
         const raw = await selectedFile.text();
         const data = JSON.parse(raw);
-        
+
         // Check Hammergen format
         if (isHammergenFormat(data)) {
             // Convert data
             const convertedData = convertHammergenToGooz(data);
-            
+
             // Save converted data
             for (const key in convertedData) {
                 if (convertedData[key] !== undefined && convertedData[key] !== null) {
                     localStorage.setItem(key, convertedData[key]);
                 }
             }
-            
+
             // Update interface
             if (fillFromStorage) fillFromStorage();
             if (setTheme) setTheme();
-            
+
             successMessage.textContent = "Import Hammergen completed successfully!";
             successMessage.removeAttribute("hidden");
             return true;
@@ -339,10 +427,10 @@ export async function importHammergenData(fillFromStorage, setTheme) {
             for (const key in data) {
                 localStorage.setItem(key, data[key]);
             }
-            
+
             if (fillFromStorage) fillFromStorage();
             if (setTheme) setTheme();
-            
+
             successMessage.textContent = "Import completed successfully!";
             successMessage.removeAttribute("hidden");
             return true;
